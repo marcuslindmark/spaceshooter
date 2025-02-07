@@ -27,7 +27,8 @@ pygame.display.set_caption("Space Shooter")
 
 # *** LADDAR IN EN BAKGRUNDSBILD ***
 # Laddar en stjärnbakgrund
-bakgrundsbild = pygame.image.load("assets/sprites/Stars-A.png")
+bakgrundsbild = pygame.image.load("assets/backgrounds/bg.png")
+stjärnbild_1 = pygame.image.load("assets/backgrounds/Stars-A.png")
 
 # *** LADDAR IN ALLA SPRITES ***
 # Laddar in en ny sprite för rymdskeppet
@@ -41,8 +42,11 @@ sprite_spelare = pygame.transform.scale(original_bild, (original_bild.get_width(
 # Sätt spelarens startposition
 spelare_x = SKÄRMENS_BREDD // 2 - 120
 spelare_y = SKÄRMENS_HÖJD - 200
-spelarens_hastighet = 5
+spelarens_hastighet = 10
 
+# *** BAKGRUNDSRÖRELSE ***
+# Bakgrundens Y-position (börjar från toppen av skärmen)
+bakgrund_y = -100
 
 # *** SPELET STARTAR HÄR ***
 # Spelloop
@@ -51,11 +55,21 @@ while (spelet_körs == True):
     
     # *** RITA BAKGRUNDSBILDEN ***
     # Skapa en mörk bakgrundsbild
-    screen.fill((0, 0, 30))  # Mörk bakgrund
-
-    # Rita stjärnorna ovanpå bakgrunden
-    screen.blit(bakgrundsbild, (0, 0))  # Lägg till stjärnbilden från hörnet (0, 0)
+    screen.blit(bakgrundsbild, (0,0))
     
+    # Rita stjärnorna i bakgrunden
+    screen.blit(stjärnbild_1, (0, bakgrund_y))  # Lägg till stjärnbilden från hörnet (0, 0)
+    
+    # Rita en andra bakgrundsbild utanför skärmen för att skapa illusionen av kontinuerlig rörelse
+    screen.blit(stjärnbild_1, (0, bakgrund_y - SKÄRMENS_HÖJD))  # Andra bilden som ligger ovanpå den första
+
+    # Uppdatera båda bakgrundsbildernas position
+    bakgrund_y = bakgrund_y + 2  # Rör bakgrunden neråt (justera denna för att få önskad hastighet)
+    
+    # Om bakgrunden har rört sig för långt (längden på skärmen) så sätt tillbaka till toppen
+    if bakgrund_y >= SKÄRMENS_HÖJD:
+        bakgrund_y = 0
+
 
     # *** AVSLUTA SPELET ***
     # Den här koden kollar hela tiden om användaren försöker stänga spelet 
