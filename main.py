@@ -1,3 +1,4 @@
+# *** GRUNDSPELET FÖLJ DESSA STEG ***
 # *** STEG 1 ***
 # Skapa en skärm, en spelloop och importera en sprite för rymdskeppet
 # Gör så att rymdskeppet kan röra på sig
@@ -131,10 +132,14 @@ while (spelet_körs == True):
     # *** AVSLUTA SPELET ***
     # Den här koden kollar hela tiden om användaren försöker stänga spelet 
     # genom att klicka på fönstrets stängknapp. 
-    for event in pygame.event.get():
+    for händelse in pygame.event.get():
         # Om användaren klickar på fönstrets stängningsknapp avslutas loopen
-        if event.type == pygame.QUIT:
+        if händelse.type == pygame.QUIT:
             spelet_körs = False
+        # denna kod kollar om användaren försöker stänga spelet med en ESC-knapp
+        elif händelse.type == pygame.KEYDOWN:
+            if händelse.key == pygame.K_ESCAPE:  # Tryck på ESC för att avsluta helskärm
+                spelet_körs = False
 
 
     # *** KONTROLLER FÖR SPELAREN ***
