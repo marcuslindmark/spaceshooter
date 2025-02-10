@@ -20,6 +20,10 @@ import pygame
 # Importerar random för att kunna skapa slumptal
 import random
 
+# Importerar time för att kunna pausa spelet vid behov
+import time
+
+
 # Initiera pygame
 pygame.init()
 
@@ -48,7 +52,7 @@ original_rymdskeppsbild = pygame.image.load("assets/sprites/spaceShip.png")
 # Skalar om rymdskeppet till halva storleken 
 # Den nya spriten länkas till spelare_bild
 # OBS // är operatorn för heltalsdivision 
-sprite_spelare = pygame.transform.scale(original_rymdskeppsbild, (original_rymdskeppsbild.get_width() // 2, original_rymdskeppsbild.get_height() // 2))
+sprite_rymdskepp = pygame.transform.scale(original_rymdskeppsbild, (original_rymdskeppsbild.get_width() // 2, original_rymdskeppsbild.get_height() // 2))
 
 # Laddar in en ny sprite för jetstrålen till rymdskeppet
 sprite_jetstråle = pygame.image.load("assets/sprites/fire.png")
@@ -59,14 +63,6 @@ sprite_skott = pygame.image.load("assets/sprites/bullet.png")
 # Laddar in en ny sprite till en liten asteroid
 sprite_asteroid_liten = pygame.image.load("assets/sprites/small-A.png")
 
-# *** STÄLL IN STARTVÄRDEN PÅ VARIABLER ***
-# Sätt spelarens startposition
-spelare_x = SKÄRMENS_BREDD // 2 - 120
-spelare_y = SKÄRMENS_HÖJD - 200
-
-# Sätt jetstrålens startposition
-jetstråle_x = spelare_x + 13
-jetstråle_y = spelare_y + 46
 
 # Sätt asteroidens startposition
 asteroid_liten_x = random.randint(0, SKÄRMENS_BREDD)
@@ -75,14 +71,14 @@ asteroid_liten_y = 100
 # Sätt asteroidens hastighet när spelet börjar
 asteroid_liten_hastighet = 4 
 
-# Sätt spelarens hastighet när spelet börjar
-spelarens_hastighet = 10
-
 # Skapar en tom lista att fylla för alla skotten som spelaren avfyrar
 skott_lista = []  # Lista för att hålla reda på alla skott
 
 # Skapar en tom lista att fylla med alla asteroider som spawnas
 asteroid_liten_lista = []  # Lista för att hålla reda på alla asteroider
+
+# Lista för alla explosioner (varje explosion är en lista med partiklar)
+explosioner = []
 
 # Variabel för att kunna skapa en kort fördröjning som hindrar spelaren från att skjuta för ofta
 skott_räknare = 0  # Håller koll på tiden mellan skott
@@ -90,12 +86,87 @@ skott_räknare = 0  # Håller koll på tiden mellan skott
 # Variabel för att skapa en fördröjning för hur ofta en asteroid får skapas
 asteroid_liten_räknare = 0  
 
+paus = 0
+
 # *** BAKGRUNDSRÖRELSE ***
 # Bakgrundens startposition vertikalt (Y-position, den börjar från toppen av skärmen)
 bakgrund_y = 0
 
+# Färger som används till explosionseffekten
+SVART = (0, 0, 0)
+FÄRG_LISTA = [(255, 50, 50), (255, 150, 50), (255, 255, 50)]  # Röd, orange, gul
+
 
 # *** SAMTLIGA KLASSER I SPELET ***
+# Denna klass hanterar allt som rör spelarens rymdskepp
+class RymdSkepp:
+    def __init__(self):
+        """Alla instansvariabler för rymdskeppet"""
+        self.rymdskepp_x = SKÄRMENS_BREDD // 2 - 120    # Rymdskeppets startposition x-led
+        self.rymdskepp_y = SKÄRMENS_HÖJD - 200          # Rymdskeppet startposition y-led
+        self.sprite_rymdskepp = sprite_rymdskepp            # Spelarens sprite/bild
+        
+        self.jetstråle_x = self.rymdskepp_x + 13        # Jetstrålens startposition x-led
+        self.jetstråle_y = self.rymdskepp_y + 46        # Jetstrålens startposition y-led
+        self.sprite_jetstråle = sprite_jetstråle        # Jetstrålen sprite/bild
+        
+        self.rymdskeppets_hastighet = 10                # Rymdskeppets hastighet                             
+        
+        self.exploderat = False                         # När spelet börjar har INTE rymdskeppet exploderat
+        
+        # Skapar en rektangel för rymdskeppet baserat på dess position och storlek
+        self.kollisions_rektangel_rymdskepp = pygame.Rect(self.rymdskepp_x, self.rymdskepp_y, self.sprite_rymdskepp.get_width(), self.sprite_rymdskepp.get_height())
+
+    def flytta(self, riktning):
+        """Flyttar spelaren i en viss riktning."""
+        if not self.exploderat:  # Om rymdskeppet har exploderat, gör ingenting
+            if riktning == "vänster":
+                self.rymdskepp_x = self.rymdskepp_x - self.rymdskeppets_hastighet
+                self.jetstråle_x = self.jetstråle_x - self.rymdskeppets_hastighet
+            elif riktning == "höger":
+                self.rymdskepp_x = self.rymdskepp_x + self.rymdskeppets_hastighet
+                self.jetstråle_x = self.jetstråle_x + self.rymdskeppets_hastighet
+            elif riktning == "upp":
+                self.rymdskepp_y = self.rymdskepp_y - self.rymdskeppets_hastighet
+                self.jetstråle_y = self.jetstråle_y - self.rymdskeppets_hastighet
+            elif riktning == "ner":
+                self.rymdskepp_y = self.rymdskepp_y + self.rymdskeppets_hastighet
+                self.jetstråle_y = self.jetstråle_y + self.rymdskeppets_hastighet
+            
+            # Flytta med kollisionsrektangeln till där rymdskeppet är
+            self.kollisions_rektangel_rymdskepp.topleft = (self.rymdskepp_x, self.rymdskepp_y)
+
+    def rita(self, skärm):
+        """Ritar spelaren på skärmen."""
+        if not self.exploderat:  # Om rymdskeppet har exploderat, rita inte det längre
+            skärm.blit(self.sprite_rymdskepp, (self.rymdskepp_x, self.rymdskepp_y))
+            skärm.blit(self.sprite_jetstråle, (self.jetstråle_x, self.jetstråle_y))
+
+            # Rita kollisionsrektangeln (färgen kan justeras)
+            pygame.draw.rect(skärm, (0, 0, 255), self.kollisions_rektangel_rymdskepp, 2)  # Blå rektangel med tjocklek 2
+        else:
+            # Ta bort kollisionsrektangeln när rymdskeppet är förstört
+            self.kollisions_rektangel_rymdskepp = pygame.Rect(0, 0, 0, 0)  
+
+# Denna klass skapar explosionseffekten när något förstörs i spelet
+class Partikel:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.livstid = random.randint(20, 50)  # Hur länge partikeln lever
+        self.hastighet_x = random.uniform(-2, 2)  # Slumpmässig rörelse i x-led
+        self.hastighet_y = random.uniform(-2, 2)  # Slumpmässig rörelse i y-led
+        self.radius = random.randint(3, 6)  # Storlek på partikeln
+        self.färg = random.choice(FÄRG_LISTA)  # Slumpmässig färg
+
+    def uppdatera(self):
+        self.x += self.hastighet_x  # Flytta partikeln i x-led
+        self.y += self.hastighet_y  # Flytta partikeln i y-led
+        self.livstid -= 1  # Minska livslängden
+
+    def rita(self, skärm):
+        if self.livstid > 0:
+            pygame.draw.circle(skärm, self.färg, (int(self.x), int(self.y)), self.radius) 
 
 # Denna klass hanterar det vanliga skottet som skeppet kan skjuta
 class Skott:
@@ -122,15 +193,32 @@ class AsteroidLiten:
         self.y = asteroid_liten_y # Asteroidens position i y-led
         self.hastighet = 4  # Asteroidens rörelsehastighet
         self.bild = sprite_asteroid_liten  # Använd sprite-bilden
+        self.kollisions_rektangel = pygame.Rect(self.x, self.y, self.bild.get_width(), self.bild.get_height())        
+           
+    # Metod som undersöker om asteroiden har kolliderat med något
+    def kollidera(self, kollisionsobjekt):
+        
+        if not spelare_1.exploderat:  # Kontrollera kollision endast om skeppet inte är förstört
+            if (self.kollisions_rektangel.colliderect(kollisionsobjekt)):
+                print ("Kollision upptäckt!")
+                spelare_1.exploderat = True
+                explosion = [Partikel(spelare_1.rymdskepp_x + 60, spelare_1.rymdskepp_y + 46) for _ in range(100)]  # Skapa 100 partiklar
+                explosioner.append(explosion)
 
     # Metod som flyttar asteroiden neråt
     def flytta(self):
         self.y = self.y + self.hastighet  # Flytta asteroiden neråt
-
+        self.kollisions_rektangel.topleft = (self.x, self.y)  # Uppdatera rektangelns position
+    
     # Metod som ritar asteroiden på skärmen
     def rita(self, skärm):
         skärm.blit(self.bild, (self.x, self.y))  # Rita asteroiden på skärmen
+    
+    # Rita kollisionsrektangeln (färgen kan justeras)
+        pygame.draw.rect(skärm, (255, 0, 0), self.kollisions_rektangel, 2)  # Röd rektangel med tjocklek 2
 
+# Skapar ett objekt av spelarens rymdskepp
+spelare_1 = RymdSkepp()
 
 # *** SPELET STARTAR HÄR ***
 # Spelloop
@@ -173,36 +261,29 @@ while (spelet_körs == True):
     # Hämtar en lista som innehåller vilka tangenter som är nedtryckta just nu och sparar den i variabeln keys.
     keys = pygame.key.get_pressed()
     
-    # Om spelaren trycker på vänster piltangent styr vänster med rymdskeppet och jetstrålen, 
-    # men inte om rymdskeppet åker utanför skärmen
-    if keys[pygame.K_LEFT] and spelare_x > 0:
-        spelare_x = spelare_x - spelarens_hastighet
-        jetstråle_x = jetstråle_x - spelarens_hastighet
+    # Styra vänster men inte utanför skärmen
+    if keys[pygame.K_LEFT] and spelare_1.rymdskepp_x > 0:
+        spelare_1.flytta("vänster")
     
-    # Om spelaren trycker på höger piltangent styr höger med rymdskeppet och jetstrålen, 
-    # men inte om rymdskeppet åker utanför skärmen
-    if keys[pygame.K_RIGHT] and spelare_x < SKÄRMENS_BREDD - sprite_spelare.get_width():
-        spelare_x = spelare_x + spelarens_hastighet
-        jetstråle_x = jetstråle_x + spelarens_hastighet
-    
-    # Om spelaren trycker på uppåt piltangent styr uppåt med rymdskeppet och jetstrålen, 
-    # men inte om rymdskeppet åker utanför skärmen
-    if keys[pygame.K_UP] and spelare_y > 0:
-        spelare_y = spelare_y - spelarens_hastighet
-        jetstråle_y = jetstråle_y - spelarens_hastighet
-    
-    # Om spelaren trycker på nedåt piltangent styr nedåt med rymdskeppet och jetstrålen, 
-    # men inte om rymdskeppet åker utanför skärmen
-    if keys[pygame.K_DOWN] and spelare_y < SKÄRMENS_HÖJD - sprite_spelare.get_width() - 20:
-        spelare_y = spelare_y + spelarens_hastighet
-        jetstråle_y = jetstråle_y + spelarens_hastighet
+    # Styra höger men inte utanför skärmen
+    if keys[pygame.K_RIGHT] and spelare_1.rymdskepp_x < SKÄRMENS_BREDD - spelare_1.sprite_rymdskepp.get_width():
+        spelare_1.flytta("höger")
+
+    # Styra uppåt men inte utanför skärmen
+    if keys[pygame.K_UP] and spelare_1.rymdskepp_y > 0:
+        spelare_1.flytta("upp")
+        
+    # Styra nedåt men inte utanför skärmen
+    if keys[pygame.K_DOWN] and spelare_1.rymdskepp_y < SKÄRMENS_HÖJD - spelare_1.sprite_rymdskepp.get_width() - 20:
+        spelare_1.flytta("ner")
+
     
     # Om spelaren trycker på SPACE skjut en kula
     if keys[pygame.K_SPACE]:  
         # Om tillräckligt lång tid har gått får spelaren skjuta igen
         if (skott_räknare > 10):
             # Uppdaterar skottlistan med en ny instans (kopia av skottet) på den position där det avfyrades
-            skott_lista.append(Skott(spelare_x + 20, spelare_y))
+            skott_lista.append(Skott(spelare_1.rymdskepp_x + 20, spelare_1.rymdskepp_y))
             
             # Nollställer räknaren
             skott_räknare = 0
@@ -225,23 +306,45 @@ while (spelet_körs == True):
         asteroid_liten_lista.append(AsteroidLiten(random.randint(100, SKÄRMENS_BREDD - 100), -100))
         # Återställ räknaren
         asteroid_liten_räknare = 0    
-         
+
+    
+    
     # Loopar igenom asteroidlistan baklänges och flyttar varje instans av asteroiderna och ritar dem på skärmen
     for asteroid_liten in reversed(asteroid_liten_lista):  # Iterera baklänges genom listan
         asteroid_liten.flytta()
+        asteroid_liten.kollidera(spelare_1.kollisions_rektangel_rymdskepp)
         asteroid_liten.rita(skärm)
-    
+        
         # Ta bort asteroider som hamnat utanför skärmen
         if asteroid_liten.y > 1100:
             asteroid_liten_lista.remove(asteroid_liten)
 
 
+    
+
     # *** RITA ALLA SPRITES PÅ SKÄRMEN ***
     # blit är en metod i Pygame som används för att rita (eller kopiera) en bild (eller yta) till en annan yta
     
     # Rita spelarens rymdskepp
-    skärm.blit(sprite_spelare, (spelare_x, spelare_y))
-    skärm.blit(sprite_jetstråle, (jetstråle_x, jetstråle_y))
+    spelare_1.rita(skärm)
+
+    # Om spelarens skepp exploderat läggs en kort paus in här innan spelet avslutas    
+    if (spelare_1.exploderat == True):
+        paus = paus + 1
+        if (paus >= 120):
+            exit()
+    
+    # *** RITAR ALLA PARTIKELEFFEKTER ***
+    # Uppdatera och rita explosionerna
+    for explosion in explosioner:
+        for partikel in explosion:
+            partikel.uppdatera()
+            partikel.rita(skärm)
+
+    # Ta bort döda partiklar (de som har en livslängd på 0)
+    explosioner = [[p for p in explosion if p.livstid > 0] for explosion in explosioner]
+    explosioner = [e for e in explosioner if len(e) > 0]  # Ta bort tomma explosioner
+
 
     # *** UPPDATERA ALL GRAFIK PÅ SKÄRMEN ***
     # Uppdaterar grafiken på skärmen så att spelaren ser vart alla spelfigurer flyttat någonstans
