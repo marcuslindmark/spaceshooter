@@ -3,6 +3,10 @@ Graphics
 Space Shooter - Starter pack by anim86
 https://anim86.itch.io/space-shoter-starter-pack
 
+Energy Progress Bar
+Image by OpenClipart-Vectors
+https://pixabay.com/vectors/progress-bar-energy-remaining-156026/
+
 Pygame logotype
 https://www.pygame.org/docs/logos.html
 
